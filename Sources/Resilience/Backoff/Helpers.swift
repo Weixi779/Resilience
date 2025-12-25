@@ -1,9 +1,9 @@
 import Foundation
 
 /// Best-effort scaling: convert to seconds as Double, scale, convert back.
-/// Guards against non-finite or negative factors by preconditioning.
-func scaleDuration(_ d: Duration, by factor: Double) -> Duration {
-    precondition(factor.isFinite && factor >= 0, "scale factor must be >= 0 and finite")
+/// Returns nil for non-finite or negative factors.
+func scaleDuration(_ d: Duration, by factor: Double) -> Duration? {
+    guard factor.isFinite, factor >= 0 else { return nil }
     let seconds = Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
     let scaled = seconds * factor
     return .seconds(scaled)

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Safety helpers for Backoff baseline parameters.
-public extension Backoff {
+extension Backoff {
     /// Validate that a duration is non-negative (best-effort).
     static func preconditionNonNegative(_ d: Duration, name: String) {
         precondition(d >= .zero, "\(name) must be >= 0")

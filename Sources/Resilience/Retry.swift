@@ -12,8 +12,8 @@ public enum RetryDecision {
 public struct RetryConfig {
     /// Maximum number of counted attempts (including the initial attempt). Must be > 0.
     public var maxAttempts: Int
-    /// Optional cap for non-counted retries (defaults to unlimited).
-    public var maxNoCountAttempts: Int?
+    /// Cap for non-counted retries (defaults to 0 to forbid unbounded no-count retries).
+    public var maxNoCountAttempts: Int
     /// Optional maximum total elapsed time for the whole retry session.
     public var maxElapsed: Duration?
     /// Optional sleep tolerance passed to `Task.sleep`.
@@ -21,14 +21,12 @@ public struct RetryConfig {
     
     public init(
         maxAttempts: Int = 3,
-        maxNoCountAttempts: Int? = nil,
+        maxNoCountAttempts: Int = 0,
         maxElapsed: Duration? = nil,
         tolerance: Duration? = nil
     ) {
         precondition(maxAttempts > 0, "maxAttempts must be > 0")
-        if let maxNoCountAttempts {
-            precondition(maxNoCountAttempts >= 0, "maxNoCountAttempts must be >= 0 when provided")
-        }
+        precondition(maxNoCountAttempts >= 0, "maxNoCountAttempts must be >= 0")
         self.maxAttempts = maxAttempts
         self.maxNoCountAttempts = maxNoCountAttempts
         self.maxElapsed = maxElapsed
@@ -78,8 +76,8 @@ public func retry<R>(
                 throw error
                 
             case .retry(let counted, let backoff):
-                // Enforce no-count cap if configured
-                if !counted, let maxNoCount = config.maxNoCountAttempts, noCountAttempts >= maxNoCount {
+                // Enforce no-count cap
+                if !counted, noCountAttempts >= config.maxNoCountAttempts {
                     throw error
                 }
                 

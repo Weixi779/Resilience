@@ -32,7 +32,9 @@ public extension Backoff {
         preconditionNonNegative(step, name: "linear step")
         preconditionNonNegative(offset, name: "linear offset")
         return Backoff { attempt in
-            let scaled = scaleDuration(step, by: Double(attempt))
+            guard let scaled = scaleDuration(step, by: Double(attempt)) else {
+                return .zero
+            }
             return scaled + offset
         }
     }
@@ -43,7 +45,10 @@ public extension Backoff {
         preconditionPositiveFinite(multiplier, name: "exponential multiplier")
         return Backoff { attempt in
             let scale = pow(multiplier, Double(attempt))
-            return scaleDuration(initial, by: scale)
+            guard let scaled = scaleDuration(initial, by: scale) else {
+                return .zero
+            }
+            return scaled
         }
     }
     
