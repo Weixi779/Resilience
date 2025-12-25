@@ -49,4 +49,26 @@ struct PollTests {
         }
         #expect(attempts == 1)
     }
+    
+    @Test
+    func pollCancellationPropagates() async throws {
+        let task = Task<String, Error> {
+            try await poll(
+                tolerance: nil,
+                maxElapsed: nil,
+                operation: {
+                    throw PollError.pending
+                },
+                backoff: { _, _ in .constant(.seconds(1)) }
+            )
+        }
+        
+        await Task.yield()
+        task.cancel()
+        
+        await #expect(throws: CancellationError.self) {
+            _ = try await task.value
+        }
+        #expect(task.isCancelled)
+    }
 }

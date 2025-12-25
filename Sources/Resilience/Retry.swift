@@ -26,6 +26,9 @@ public struct RetryConfig {
         tolerance: Duration? = nil
     ) {
         precondition(maxAttempts > 0, "maxAttempts must be > 0")
+        if let maxNoCountAttempts {
+            precondition(maxNoCountAttempts >= 0, "maxNoCountAttempts must be >= 0 when provided")
+        }
         self.maxAttempts = maxAttempts
         self.maxNoCountAttempts = maxNoCountAttempts
         self.maxElapsed = maxElapsed
@@ -75,6 +78,11 @@ public func retry<R>(
                 throw error
                 
             case .retry(let counted, let backoff):
+                // Enforce no-count cap if configured
+                if !counted, let maxNoCount = config.maxNoCountAttempts, noCountAttempts >= maxNoCount {
+                    throw error
+                }
+                
                 guard let delay = backoff.duration(at: attemptIndex, context: ctx) else {
                     throw error
                 }
@@ -85,9 +93,6 @@ public func retry<R>(
                     }
                     countedAttempts += 1
                 } else {
-                    if let maxNoCount = config.maxNoCountAttempts, noCountAttempts >= maxNoCount {
-                        throw error
-                    }
                     noCountAttempts += 1
                 }
                 

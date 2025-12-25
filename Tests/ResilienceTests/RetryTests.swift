@@ -65,4 +65,30 @@ struct RetryTests {
         }
         #expect(attempts == 1)
     }
+    
+    @Test
+    func retryCancellationPropagates() async throws {
+        let task = Task<Int, Error> {
+            var attempts = 0
+            try await retry(
+                config: RetryConfig(maxAttempts: 5),
+                operation: {
+                    attempts += 1
+                    throw SampleError.transient
+                },
+                decision: { _, _ in
+                    .retry(counted: true, backoff: .constant(.seconds(1)))
+                }
+            )
+            return attempts
+        }
+        
+        await Task.yield()
+        task.cancel()
+        
+        await #expect(throws: CancellationError.self) {
+            _ = try await task.value
+        }
+        #expect(task.isCancelled)
+    }
 }

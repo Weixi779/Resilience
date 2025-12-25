@@ -23,12 +23,15 @@ public extension Backoff {
     }
     
     static func constant(_ d: Duration) -> Backoff {
-        Backoff { _ in d }
+        preconditionNonNegative(d, name: "constant duration")
+        return Backoff { _ in d }
     }
     
     /// Linear growth: `offset + step * attempt`
     static func linear(step: Duration, offset: Duration) -> Backoff {
-        Backoff { attempt in
+        preconditionNonNegative(step, name: "linear step")
+        preconditionNonNegative(offset, name: "linear offset")
+        return Backoff { attempt in
             let scaled = scaleDuration(step, by: Double(attempt))
             return scaled + offset
         }
@@ -36,7 +39,9 @@ public extension Backoff {
     
     /// Exponential growth: `initial * multiplier^attempt`
     static func exponential(initial: Duration, multiplier: Double) -> Backoff {
-        Backoff { attempt in
+        preconditionNonNegative(initial, name: "exponential initial")
+        preconditionPositiveFinite(multiplier, name: "exponential multiplier")
+        return Backoff { attempt in
             let scale = pow(multiplier, Double(attempt))
             return scaleDuration(initial, by: scale)
         }
