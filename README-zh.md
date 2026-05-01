@@ -2,17 +2,17 @@
 
 [![Swift](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
 [![SwiftPM](https://img.shields.io/badge/SwiftPM-compatible-brightgreen.svg)](https://swift.org/package-manager/)
-[![Platforms](https://img.shields.io/badge/platforms-iOS%2016%2B%20%7C%20macOS%2013%2B%20%7C%20tvOS%2016%2B%20%7C%20watchOS%209%2B-lightgrey.svg)](#requirements)
+[![Platforms](https://img.shields.io/badge/platforms-iOS%2016%2B%20%7C%20macOS%2013%2B%20%7C%20tvOS%2016%2B%20%7C%20watchOS%209%2B-lightgrey.svg)](README.md#requirements)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-English | [简体中文](README-zh.md)
+[English](README.md) | 简体中文
 
-Resilience is a lightweight Swift package for async retry and polling workflows.
-It provides a small set of primitives: composable `Backoff`, explicit attempt and elapsed-time limits, and simple decision callbacks for retry and polling behavior.
+Resilience 是一个轻量的 Swift async retry / polling 工具库。
+它只提供少量核心原语：可组合的 `Backoff`、明确的次数和耗时限制，以及用于 retry 和 polling 的 decision callback。
 
-This package is intentionally not a workflow engine. It stays close to Swift concurrency and keeps business decisions in your code.
+这个库不试图成为流程编排框架。它尽量贴近 Swift concurrency，把业务判断留在调用方代码里。
 
-## Requirements
+## 环境要求
 
 - Swift 6.2+
 - iOS 16+
@@ -20,9 +20,9 @@ This package is intentionally not a workflow engine. It stays close to Swift con
 - tvOS 16+
 - watchOS 9+
 
-## Installation
+## 安装
 
-Add Resilience to your package dependencies:
+在 Swift Package 依赖中加入 Resilience：
 
 ```swift
 dependencies: [
@@ -30,7 +30,7 @@ dependencies: [
 ]
 ```
 
-Then add `Resilience` to the target that uses it:
+然后在需要使用的 target 中加入依赖：
 
 ```swift
 .target(
@@ -39,11 +39,11 @@ Then add `Resilience` to the target that uses it:
 )
 ```
 
-After the first release tag is cut, prefer a versioned dependency instead of `branch: "main"`.
+第一个 release tag 打好之后，建议改成基于版本号的依赖，而不是 `branch: "main"`。
 
 ## Retry
 
-Use `retry` when an operation should be attempted again after selected failures.
+当一个异步操作在特定错误下需要重新执行时，使用 `retry`。
 
 ```swift
 import Foundation
@@ -69,11 +69,11 @@ let value = try await retry(
 )
 ```
 
-`attempts: .max(3)` includes the initial attempt, so it allows the initial operation plus up to two retries.
+`attempts: .max(3)` 包含第一次执行，所以它表示初始执行 1 次，最多再 retry 2 次。
 
 ## Polling
 
-Use `poll` when an operation is expected to fail with a temporary "not ready yet" state until it eventually succeeds.
+当一个异步操作会先进入“暂未完成”状态，并需要持续等待直到成功时，使用 `poll`。
 
 ```swift
 import Foundation
@@ -99,13 +99,13 @@ let status = try await poll(
 )
 ```
 
-`PollConfig` defaults to unlimited attempts and unlimited elapsed time. In production code, prefer setting at least an elapsed limit unless cancellation or your decision callback already provides a clear stop condition.
+`PollConfig` 默认不限制 attempts，也不限制 elapsed。生产代码里建议至少设置一个 elapsed 限制，除非 cancellation 或 decision callback 已经能明确停止。
 
 ## Backoff
 
-`Backoff` describes how long to wait before the next attempt.
+`Backoff` 描述下一次 attempt 前需要等待多久。
 
-Built-in baselines:
+内置基线：
 
 - `.none`
 - `.constant(_:)`
@@ -113,7 +113,7 @@ Built-in baselines:
 - `.exponential(initial:multiplier:)`
 - `.custom(_:)`
 
-Built-in transforms:
+内置变换：
 
 - `.min(_:)`
 - `.max(_:)`
@@ -131,7 +131,7 @@ let firstDelay = backoff.duration(at: 0)
 let secondDelay = backoff.duration(at: 1)
 ```
 
-For deterministic jitter in tests, inject your own random number generator:
+测试中如果需要稳定的 jitter 结果，可以注入自己的随机数生成器：
 
 ```swift
 var rng = MyFixedRNG([0, .max])
@@ -141,7 +141,7 @@ let delay = backoff.duration(at: 0, rng: &rng)
 
 ## Limits
 
-Retry and polling share the same limit types:
+Retry 和 polling 共用同一组限制模型：
 
 ```swift
 public enum AttemptLimit {
@@ -155,12 +155,12 @@ public enum ElapsedLimit {
 }
 ```
 
-`AttemptLimit.max(_:)` counts operation executions, including the initial attempt.
-`ElapsedLimit.max(_:)` applies to the whole retry or polling session, including time spent in backoff sleeps.
+`AttemptLimit.max(_:)` 统计的是 operation 的执行次数，包含第一次执行。
+`ElapsedLimit.max(_:)` 限制的是整个 retry 或 polling 会话的总耗时，包含 backoff sleep 的时间。
 
-## API Shape
+## API 形态
 
-The core API is intentionally small:
+核心 API 保持很小：
 
 ```swift
 RetryConfig(attempts: .max(3), elapsed: .max(.seconds(30)))
@@ -170,8 +170,8 @@ PollConfig(attempts: .unlimited, elapsed: .max(.seconds(60)))
 PollDecision.retry(backoff: .constant(.seconds(1)))
 ```
 
-Use the decision callback to decide which errors should retry and which should stop. More structured policy APIs can be layered on later without changing the core model.
+调用方通过 decision callback 决定哪些错误继续 retry，哪些错误直接 stop。更结构化的 policy API 可以后续再叠加，但第一版核心模型先保持克制。
 
 ## License
 
-Resilience is available under the MIT license. See [LICENSE](LICENSE) for details.
+Resilience 使用 MIT License。详情见 [LICENSE](LICENSE)。
