@@ -11,9 +11,9 @@ private enum SampleError: Error {
 struct RetryTests {
     
     @Test
-    func countedRetriesSucceedWithinLimit() async throws {
+    func retriesSucceedWithinAttemptLimit() async throws {
         var attempts = 0
-        let result = try await retry(config: RetryConfig(maxAttempts: 3)) {
+        let result = try await retry(config: RetryConfig(attempts: .max(3))) {
             attempts += 1
             if attempts < 3 { throw SampleError.transient }
             return "ok"
@@ -23,10 +23,10 @@ struct RetryTests {
     }
     
     @Test
-    func countedRetriesExhaustLimit() async throws {
+    func retriesExhaustAttemptLimit() async throws {
         var attempts = 0
         await #expect(throws: SampleError.transient) {
-            try await retry(config: RetryConfig(maxAttempts: 2)) {
+            try await retry(config: RetryConfig(attempts: .max(2))) {
                 attempts += 1
                 throw SampleError.transient
             }
@@ -35,21 +35,28 @@ struct RetryTests {
     }
     
     @Test
-    func noCountRetriesRespectCap() async throws {
+    func unlimitedAttemptsCanContinueUntilSuccess() async throws {
         var attempts = 0
-        let backoff = Backoff.none
-        let cfg = RetryConfig(maxAttempts: 1, maxNoCountAttempts: 1)
+        let result = try await retry(config: RetryConfig(attempts: .unlimited)) {
+            attempts += 1
+            if attempts < 5 { throw SampleError.transient }
+            return "ok"
+        }
         
+        #expect(result == "ok")
+        #expect(attempts == 5)
+    }
+    
+    @Test
+    func elapsedLimitStopsRetrying() async throws {
+        var attempts = 0
         await #expect(throws: SampleError.transient) {
-            try await retry(config: cfg, operation: {
+            try await retry(config: RetryConfig(elapsed: .max(.zero))) {
                 attempts += 1
                 throw SampleError.transient
-            }, decision: { error, _ in
-                guard case SampleError.transient = error else { return .stop }
-                return .retry(counted: false, backoff: backoff)
-            })
+            }
         }
-        #expect(attempts == 2) // initial + one no-count retry
+        #expect(attempts == 1)
     }
     
     @Test
@@ -66,19 +73,17 @@ struct RetryTests {
         #expect(attempts == 1)
     }
     
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func retryCancellationPropagates() async throws {
         let task = Task<Int, Error> {
             var attempts = 0
             try await retry(
-                config: RetryConfig(maxAttempts: 5),
+                config: RetryConfig(attempts: .max(5)),
                 operation: {
                     attempts += 1
                     throw SampleError.transient
                 },
-                decision: { _, _ in
-                    .retry(counted: true, backoff: .constant(.seconds(1)))
-                }
+                decision: retryAfterOneSecond
             )
             return attempts
         }
@@ -91,4 +96,8 @@ struct RetryTests {
         }
         #expect(task.isCancelled)
     }
+}
+
+private func retryAfterOneSecond(_: Error, _: AttemptContext) -> RetryDecision {
+    .retry(backoff: .constant(.seconds(1)))
 }

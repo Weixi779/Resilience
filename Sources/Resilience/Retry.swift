@@ -2,42 +2,35 @@ import Foundation
 
 /// Decision returned by a retry policy.
 public enum RetryDecision {
-    /// Retry after the given backoff; `counted` controls whether it consumes `maxAttempts`.
-    case retry(counted: Bool, backoff: Backoff)
+    /// Retry after the given backoff.
+    case retry(backoff: Backoff)
     /// Stop immediately and surface the error.
     case stop
 }
 
 /// Configuration for retry behavior.
-public struct RetryConfig {
-    /// Maximum number of counted attempts (including the initial attempt). Must be > 0.
-    public var maxAttempts: Int
-    /// Cap for non-counted retries (defaults to 0 to forbid unbounded no-count retries).
-    public var maxNoCountAttempts: Int
-    /// Optional maximum total elapsed time for the whole retry session.
-    public var maxElapsed: Duration?
-    /// Optional sleep tolerance passed to `Task.sleep`.
-    public var tolerance: Duration?
+public struct RetryConfig: Equatable, Sendable {
+    /// Total operation attempts, including the initial attempt.
+    public var attempts: AttemptLimit
+    /// Total elapsed time for the retry session.
+    public var elapsed: ElapsedLimit
     
     public init(
-        maxAttempts: Int = 3,
-        maxNoCountAttempts: Int = 0,
-        maxElapsed: Duration? = nil,
-        tolerance: Duration? = nil
+        attempts: AttemptLimit = .max(3),
+        elapsed: ElapsedLimit = .unlimited
     ) {
-        precondition(maxAttempts > 0, "maxAttempts must be > 0")
-        precondition(maxNoCountAttempts >= 0, "maxNoCountAttempts must be >= 0")
-        self.maxAttempts = maxAttempts
-        self.maxNoCountAttempts = maxNoCountAttempts
-        self.maxElapsed = maxElapsed
-        self.tolerance = tolerance
+        attempts.validate()
+        elapsed.validate()
+        
+        self.attempts = attempts
+        self.elapsed = elapsed
     }
 }
 
 /// Execute an async operation with retry logic.
 ///
 /// - Parameters:
-///   - config: Retry configuration (attempt limits, elapsed limit, tolerance).
+///   - config: Retry configuration for attempt and elapsed limits.
 ///   - operation: The async operation to perform.
 ///   - decision: Policy mapping `(Error, AttemptContext)` to `RetryDecision`.
 /// - Returns: The successful result of `operation`.
@@ -45,14 +38,12 @@ public struct RetryConfig {
 public func retry<R>(
     config: RetryConfig = RetryConfig(),
     operation: () async throws -> R,
-    decision: (Error, AttemptContext) -> RetryDecision = { _, _ in .retry(counted: true, backoff: .none) }
+    decision: (Error, AttemptContext) -> RetryDecision = { _, _ in .retry(backoff: .none) }
 ) async throws -> R {
     let clock = ContinuousClock()
     let start = clock.now
     
     var attemptIndex = 0
-    var countedAttempts = 0
-    var noCountAttempts = 0
     
     while true {
         do {
@@ -61,13 +52,12 @@ public func retry<R>(
             try Task.checkCancellation()
             
             let elapsed = clock.now - start
-            if let maxElapsed = config.maxElapsed, elapsed >= maxElapsed {
+            if config.elapsed.isReached(by: elapsed) {
                 throw error
             }
             
             let ctx = AttemptContext(
                 attemptIndex: attemptIndex,
-                countedAttempts: countedAttempts,
                 elapsed: elapsed
             )
             
@@ -75,9 +65,8 @@ public func retry<R>(
             case .stop:
                 throw error
                 
-            case .retry(let counted, let backoff):
-                // Enforce no-count cap
-                if !counted, noCountAttempts >= config.maxNoCountAttempts {
+            case .retry(let backoff):
+                guard config.attempts.allowsRetry(afterAttemptAt: attemptIndex) else {
                     throw error
                 }
                 
@@ -85,21 +74,12 @@ public func retry<R>(
                     throw error
                 }
                 
-                if counted {
-                    if countedAttempts >= config.maxAttempts - 1 {
-                        throw error
-                    }
-                    countedAttempts += 1
-                } else {
-                    noCountAttempts += 1
-                }
-                
-                if let maxElapsed = config.maxElapsed, elapsed + delay > maxElapsed {
+                if !config.elapsed.allowsSleep(elapsed: elapsed, delay: delay) {
                     throw error
                 }
                 
                 try Task.checkCancellation()
-                try await Task.sleep(for: delay, tolerance: config.tolerance, clock: clock)
+                try await Task.sleep(for: delay, clock: clock)
                 try Task.checkCancellation()
                 
                 attemptIndex += 1

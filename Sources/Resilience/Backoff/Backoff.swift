@@ -1,18 +1,5 @@
 import Foundation
 
-/// Context describing a retry attempt (can be extended by retry/poll logic).
-public struct AttemptContext {
-    public let attemptIndex: Int
-    public let countedAttempts: Int
-    public let elapsed: Duration
-    
-    public init(attemptIndex: Int, countedAttempts: Int = 0, elapsed: Duration = .zero) {
-        self.attemptIndex = attemptIndex
-        self.countedAttempts = countedAttempts
-        self.elapsed = elapsed
-    }
-}
-
 /// Composable backoff plan: baseline curve plus ordered transforms.
 public struct Backoff {
     let base: (Int) -> Duration

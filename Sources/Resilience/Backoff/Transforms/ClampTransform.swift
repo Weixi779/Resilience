@@ -10,7 +10,7 @@ import Foundation
 /// ```swift
 /// // 1s, 2s, 4s, 5s, 5s...
 /// let backoff = Backoff
-///     .exponential(a: .seconds(1), factor: 2)
+///     .exponential(initial: .seconds(1), multiplier: 2)
 ///     .clamp(min: .seconds(1), max: .seconds(5))
 /// ```
 struct ClampTransform: BackoffTransform {

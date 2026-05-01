@@ -1,19 +1,44 @@
 import Foundation
 
+/// Decision returned by a poll policy.
+public enum PollDecision {
+    /// Poll again after the given backoff.
+    case retry(backoff: Backoff)
+    /// Stop immediately and surface the error.
+    case stop
+}
+
+/// Configuration for poll behavior.
+public struct PollConfig: Equatable, Sendable {
+    /// Total operation attempts, including the initial attempt.
+    public var attempts: AttemptLimit
+    /// Total elapsed time for the poll session.
+    public var elapsed: ElapsedLimit
+    
+    public init(
+        attempts: AttemptLimit = .unlimited,
+        elapsed: ElapsedLimit = .unlimited
+    ) {
+        attempts.validate()
+        elapsed.validate()
+        
+        self.attempts = attempts
+        self.elapsed = elapsed
+    }
+}
+
 /// Poll an async operation until it succeeds or the backoff policy stops it.
 ///
 /// - Parameters:
-///   - tolerance: Optional sleep tolerance.
-///   - maxElapsed: Optional total elapsed limit for polling session.
+///   - config: Poll configuration for attempt and elapsed limits.
 ///   - operation: Async operation to poll until success.
-///   - backoff: Maps `(Error, AttemptContext)` to a `Backoff`; returning `nil` stops polling.
+///   - decision: Policy mapping `(Error, AttemptContext)` to `PollDecision`.
 /// - Returns: The successful result of `operation`.
-/// - Throws: The last error when backoff returns `nil`, elapsed limit is hit, or cancellation occurs.
+/// - Throws: The last error when polling stops, limits are hit, or cancellation occurs.
 public func poll<R>(
-    tolerance: Duration? = nil,
-    maxElapsed: Duration? = nil,
+    config: PollConfig = PollConfig(),
     operation: () async throws -> R,
-    backoff: (Error, AttemptContext) -> Backoff?
+    decision: (Error, AttemptContext) -> PollDecision
 ) async throws -> R {
     let clock = ContinuousClock()
     let start = clock.now
@@ -27,28 +52,37 @@ public func poll<R>(
             try Task.checkCancellation()
             
             let elapsed = clock.now - start
-            if let maxElapsed, elapsed >= maxElapsed {
+            if config.elapsed.isReached(by: elapsed) {
                 throw error
             }
             
             let ctx = AttemptContext(
                 attemptIndex: attemptIndex,
-                countedAttempts: attemptIndex,
                 elapsed: elapsed
             )
             
-            guard let strategy = backoff(error, ctx),
-                  let delay = strategy.duration(at: attemptIndex, context: ctx)
-            else {
+            let backoff: Backoff
+            switch decision(error, ctx) {
+            case .stop:
+                throw error
+            case .retry(let retryBackoff):
+                backoff = retryBackoff
+            }
+            
+            guard config.attempts.allowsRetry(afterAttemptAt: attemptIndex) else {
                 throw error
             }
             
-            if let maxElapsed, elapsed + delay > maxElapsed {
+            guard let delay = backoff.duration(at: attemptIndex, context: ctx) else {
+                throw error
+            }
+            
+            if !config.elapsed.allowsSleep(elapsed: elapsed, delay: delay) {
                 throw error
             }
             
             try Task.checkCancellation()
-            try await Task.sleep(for: delay, tolerance: tolerance, clock: clock)
+            try await Task.sleep(for: delay, clock: clock)
             try Task.checkCancellation()
             
             attemptIndex += 1
