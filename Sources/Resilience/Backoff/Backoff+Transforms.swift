@@ -32,7 +32,7 @@ public extension Backoff {
         addingTransform(FullJitterTransform())
     }
     
-    private func addingTransform(_ t: any BackoffTransform) -> Backoff {
-        Backoff(base: base, transforms: transforms + [t])
+    private func addingTransform(_ transform: any BackoffTransform) -> Backoff {
+        Backoff(baseline: baseline, transforms: transforms + [transform])
     }
 }

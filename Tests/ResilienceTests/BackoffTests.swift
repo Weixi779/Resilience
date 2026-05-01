@@ -34,31 +34,29 @@ struct BackoffTests {
     }
     
     @Test
-    func jitterUsesInjectedRNG() async throws {
+    func jitterUsesInjectedRandomNumberGenerator() async throws {
         // Values toggle between low/high to hit jitter bounds.
-        var rng = FixedRNG([0, UInt64.max])
+        var randomNumberGenerator = FixedRandomNumberGenerator([0, UInt64.max])
         let backoff = Backoff.constant(.seconds(10)).jitter(percent: 0.1)
         
-        let d0 = backoff.duration(at: 0, rng: &rng)
-        let d1 = backoff.duration(at: 1, rng: &rng)
+        let firstDelay = try #require(backoff.duration(at: 0, using: &randomNumberGenerator))
+        let secondDelay = try #require(backoff.duration(at: 1, using: &randomNumberGenerator))
         
-        #expect(d0 != nil && d1 != nil)
-        
-        let s0 = doubleSeconds(d0!)
-        let s1 = doubleSeconds(d1!)
+        let firstSeconds = doubleSeconds(firstDelay)
+        let secondSeconds = doubleSeconds(secondDelay)
         
         // With 10% jitter, delays should fall within [9, 11] seconds
-        #expect(s0 >= 9.0 && s0 <= 11.0)
-        #expect(s1 >= 9.0 && s1 <= 11.0)
+        #expect(firstSeconds >= 9.0 && firstSeconds <= 11.0)
+        #expect(secondSeconds >= 9.0 && secondSeconds <= 11.0)
     }
 }
 
-private struct FixedRNG: RandomNumberGenerator {
+private struct FixedRandomNumberGenerator: RandomNumberGenerator {
     var values: [UInt64]
     var index: Int = 0
     
     init(_ values: [UInt64]) {
-        precondition(!values.isEmpty, "FixedRNG requires at least one value")
+        precondition(!values.isEmpty, "FixedRandomNumberGenerator requires at least one value")
         self.values = values
     }
     
@@ -68,6 +66,6 @@ private struct FixedRNG: RandomNumberGenerator {
     }
 }
 
-private func doubleSeconds(_ d: Duration) -> Double {
-    Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
+private func doubleSeconds(_ duration: Duration) -> Double {
+    Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18
 }

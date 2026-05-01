@@ -22,15 +22,15 @@ struct ClampTransform: BackoffTransform {
         self.maxValue = max
     }
     
-    func apply<R: RandomNumberGenerator>(
-        _ d: Duration,
+    func apply<Generator: RandomNumberGenerator>(
+        to duration: Duration,
         attempt: Int,
         context: AttemptContext,
-        rng: inout R
+        using randomNumberGenerator: inout Generator
     ) -> Duration? {
-        var v = d
-        if let minValue, v < minValue { v = minValue }
-        if let maxValue, v > maxValue { v = maxValue }
-        return v
+        var clampedDuration = duration
+        if let minValue, clampedDuration < minValue { clampedDuration = minValue }
+        if let maxValue, clampedDuration > maxValue { clampedDuration = maxValue }
+        return clampedDuration
     }
 }

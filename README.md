@@ -134,9 +134,9 @@ let secondDelay = backoff.duration(at: 1)
 For deterministic jitter in tests, inject your own random number generator:
 
 ```swift
-var rng = MyFixedRNG([0, .max])
+var randomNumberGenerator = MyFixedRandomNumberGenerator([0, .max])
 let backoff = Backoff.constant(.seconds(10)).jitter(percent: 0.1)
-let delay = backoff.duration(at: 0, rng: &rng)
+let delay = backoff.duration(at: 0, using: &randomNumberGenerator)
 ```
 
 ## Limits

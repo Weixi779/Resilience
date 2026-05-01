@@ -56,13 +56,13 @@ public func poll<R>(
                 throw error
             }
             
-            let ctx = AttemptContext(
+            let attemptContext = AttemptContext(
                 attemptIndex: attemptIndex,
                 elapsed: elapsed
             )
             
             let backoff: Backoff
-            switch decision(error, ctx) {
+            switch decision(error, attemptContext) {
             case .stop:
                 throw error
             case .retry(let retryBackoff):
@@ -73,7 +73,7 @@ public func poll<R>(
                 throw error
             }
             
-            guard let delay = backoff.duration(at: attemptIndex, context: ctx) else {
+            guard let delay = backoff.duration(at: attemptIndex, context: attemptContext) else {
                 throw error
             }
             

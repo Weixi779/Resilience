@@ -22,9 +22,9 @@ public extension Backoff {
         Backoff { _ in .zero }
     }
     
-    static func constant(_ d: Duration) -> Backoff {
-        preconditionNonNegative(d, name: "constant duration")
-        return Backoff { _ in d }
+    static func constant(_ duration: Duration) -> Backoff {
+        preconditionNonNegative(duration, name: "constant duration")
+        return Backoff { _ in duration }
     }
     
     /// Linear growth: `offset + step * attempt`
@@ -52,7 +52,7 @@ public extension Backoff {
         }
     }
     
-    static func custom(_ f: @escaping (Int) -> Duration) -> Backoff {
-        Backoff(base: f)
+    static func custom(_ baseline: @escaping (Int) -> Duration) -> Backoff {
+        Backoff(baseline: baseline)
     }
 }

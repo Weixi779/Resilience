@@ -2,35 +2,40 @@ import Foundation
 
 /// Composable backoff plan: baseline curve plus ordered transforms.
 public struct Backoff {
-    let base: (Int) -> Duration
+    let baseline: (Int) -> Duration
     let transforms: [any BackoffTransform]
     
-    public init(base: @escaping (Int) -> Duration, transforms: [any BackoffTransform] = []) {
-        self.base = base
+    public init(baseline: @escaping (Int) -> Duration, transforms: [any BackoffTransform] = []) {
+        self.baseline = baseline
         self.transforms = transforms
     }
     
     /// Compute delay for a given attempt; any transform returning nil stops the chain.
-    public func duration<R: RandomNumberGenerator>(
+    public func duration<Generator: RandomNumberGenerator>(
         at attempt: Int,
         context: AttemptContext? = nil,
-        rng: inout R
+        using randomNumberGenerator: inout Generator
     ) -> Duration? {
-        let ctx = context ?? AttemptContext(attemptIndex: attempt)
-        var value = base(attempt)
-        for t in transforms {
-            guard let next = t.apply(value, attempt: attempt, context: ctx, rng: &rng) else {
+        let attemptContext = context ?? AttemptContext(attemptIndex: attempt)
+        var duration = baseline(attempt)
+        for transform in transforms {
+            guard let nextDuration = transform.apply(
+                to: duration,
+                attempt: attempt,
+                context: attemptContext,
+                using: &randomNumberGenerator
+            ) else {
                 return nil
             }
-            value = next
+            duration = nextDuration
         }
-        return value
+        return duration
     }
     
-    /// Convenience: compute delay using system RNG.
+    /// Convenience: compute delay using the system random number generator.
     public func duration(at attempt: Int, context: AttemptContext? = nil) -> Duration? {
-        var rng = SystemRandomNumberGenerator()
-        return duration(at: attempt, context: context, rng: &rng)
+        var randomNumberGenerator = SystemRandomNumberGenerator()
+        return duration(at: attempt, context: context, using: &randomNumberGenerator)
     }
 }
 

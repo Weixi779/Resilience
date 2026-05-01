@@ -134,9 +134,9 @@ let secondDelay = backoff.duration(at: 1)
 测试中如果需要稳定的 jitter 结果，可以注入自己的随机数生成器：
 
 ```swift
-var rng = MyFixedRNG([0, .max])
+var randomNumberGenerator = MyFixedRandomNumberGenerator([0, .max])
 let backoff = Backoff.constant(.seconds(10)).jitter(percent: 0.1)
-let delay = backoff.duration(at: 0, rng: &rng)
+let delay = backoff.duration(at: 0, using: &randomNumberGenerator)
 ```
 
 ## Limits
